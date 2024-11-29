@@ -1,6 +1,7 @@
 % Performs forward search based on the included transition model and action space
 
 actions = ["add", "sub"];
+vis_delay = 0.5;
 
 % grid state is the state of the grid
 grid_state = zeros(3);
@@ -11,7 +12,16 @@ prev_action = "start";
 prev_action_idx = 0;
 
 % target grid state
-desired_grid= [0, 0, 0; 2, 2, 2; 0, 2, 0];
+desired_grid= [0, 2, 0; 2, 2, 2; 0, 2, 0];
+
+% desired_state = [0, 0, 0, 0, 0, 0, 0;
+%                  0, 0, 2, 2, 2, 0, 0;
+%                  0, 2, 0, 2, 0, 2, 0;
+%                  0, 2, 2, 2, 2, 2, 0;
+%                  0, 2, 0, 2, 0, 2, 0;
+%                  0, 0, 2, 2, 2, 0, 0;
+%                  0, 0, 0, 0, 0, 0, 0];
+
 
 P_under = 0.1;
 P_crit = 0.7;
@@ -22,13 +32,35 @@ exp_outcome = dictionary(actions, [2,0]);
 
 % check starting from here
 prev_action = "add";
-prev_action_idx = 5;
-grid_state = [0,0,0;0,2,1; 0,0,0];
+prev_action_idx = 1;
+grid_state = [0,0,0;0,0,0; 0,0,0];
 
 % check reward function
-reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'add', 2)
-reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'sub', 5)
-reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'sub', 8)
+% reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'sub', 2)
+% reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'sub', 5)
+% reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'sub', 8)
+
+% % check forward step 
+% [action, position, value] = forward_search_step(grid_state, desired_grid, 0.9, 2, exp_outcome, prev_action, prev_action_idx, P_under, P_crit, P_over);
+
+% Value iteration
+% reset to 0
+prev_aciton = "add";
+prev_action_idx = 1;
+grid_state = zeros(3);
+dimension = size(grid_state);
+figure;
+while ~isequal(grid_state, desired_grid)
+    [action, position, value] = forward_search_step(grid_state, desired_grid, 0.9, 2, exp_outcome, prev_action, prev_action_idx, P_under, P_crit, P_over)
+    [i,j] = ind2sub(dimension, position)
+    if action == "add"
+        grid_state = add_action(grid_state, [i,j]);
+    elseif action == "sub"
+        grid_state = sub_action(grid_state, [i,j]);
+    end
+    visualize_state(grid_state)
+    pause(vis_delay)
+end
 
 function reward=reward_func(state, target_state, exp_outcome, prev_action, prev_action_idx, action, action_position)
     % calculate neighboring cells
@@ -71,19 +103,18 @@ function reward=reward_func(state, target_state, exp_outcome, prev_action, prev_
     % reward for removing partially filled cells
     elseif (cur_val == 1 & action =="sub")
         reward=5;
+    elseif (cur_val ==0 & action =="sub")
+        reward = -100;
     else
         reward=0;
     end
 end
 
 
-% transitions will be calculated on the fly since the state space is too large
-function calc_transition()
-end
-function [best_action, best_value] = forward_search_step(state, desired_state, gamma, depth, U, )
-    best_value = inf;
-    best_action = None;
-    best_position = [0 0];
+function [best_action, best_idx, best_value] = forward_search_step(state, desired_state, gamma, depth, exp_outcome, prev_action, prev_action_position, P_under, P_crit, P_over)
+    best_value = -inf;
+    best_action = "none";
+    best_idx = 0;
     
     % calculate size of matrix
     dim = size(state);
@@ -102,33 +133,70 @@ function [best_action, best_value] = forward_search_step(state, desired_state, g
         return
     end
     % Generate list of possible next states
-    s_primes = []
+    s_primes = [];
     % check add first
     for idx = 1:len
+        [posx, posy] = ind2sub(dim,idx);
+        pos = [posx,posy];
         % only adding if the cell is empty
         if state(idx) == 0
-            s_primes = cat(3,s_primes, add_specific_action(state, idx, "under"), add_specific_action(state, idx, "crit"), add_specific_action(state,idx, "over");
+            s_primes = cat(3,s_primes, add_specific_action(state, pos, "under"), add_specific_action(state, pos, "crit"), add_specific_action(state, pos, "over"));
+        end
+    end
     % then check sub
     for idx = 1:len
+        [posx, posy] = ind2sub(dim,idx);
+        pos = [posx,posy];
         % only subbing if the cell has something there
-        if state(idx) != 0
-            s_primes = cat(3,s_primes, sub_action(state, idx))
+        if state(idx) ~= 0
+            s_primes = cat(3,s_primes, sub_action(state, pos));
         end
     end
 
     % loop through possible next states using forward search to find value
-    value_primes = dictionary()
-    for s_prime = s_primes
-        [_, value_prime] = forward_search_step(s_prime, desired_state, depth-1, U)
-        value_prime = insert(value_prime, find_state_id(s_prime, dim(1), dim(2)) , value_prime)
+    value_primes = dictionary();
+    num_s = size(s_primes);
+    for k = 1:num_s(3)
+        [action_prime, idx_prime, value_prime] = forward_search_step(s_primes(:,:,k), desired_state, gamma, depth-1, exp_outcome, prev_action, prev_action_position, P_under, P_crit, P_over);
+        value_primes = insert(value_primes, find_state_id(s_primes(:,:,k)) , value_prime);
     end
-            
-    % check all actions on all positions
-    for a = actions
-        for idx = 1:len
-            
+    % checking all add conditions first
+    for idx = 1:len
+        [posx, posy] = ind2sub(dim,idx);
+        pos = [posx,posy];
+        % if position is empty
+        if state(idx) == 0
+            try
+                summation = P_under * value_primes(find_state_id(add_specific_action(state, pos, "under"))) + P_crit * value_primes(find_state_id(add_specific_action(state, pos, "crit"))) + P_over * value_primes(find_state_id(add_specific_action(state, pos, "over")));
+            catch
+                find_state_id(add_specific_action(state, pos, "under"))
+                find_state_id(add_specific_action(state, pos, "crit"))
+                find_state_id(add_specific_action(state, pos, "over"))
+                value_primes
+                idx
+            end
+            value = reward_func(state, desired_state, exp_outcome, prev_action, prev_action_position , "add", idx) + gamma*summation;
+            % check if better than best value
+            if value > best_value
+                best_value=value;
+                best_action = "add";
+                best_idx = idx;
+            end
+        end
+    end
 
-
+    for idx = 1:len
+        [posx, posy] = ind2sub(dim,idx);
+        pos = [posx,posy];
+        if state(idx) ~= 0
+            summation = value_primes(find_state_id(sub_action(state, pos)));
+            value = reward_func(state, desired_state, exp_outcome, prev_action, prev_action_position, "sub", idx) + gamma*summation;
+            % check if better than best value
+            if value > best_value
+                best_value=value;
+                best_action = "sub";
+                best_idx = idx;
+            end
         end
     end
 end
