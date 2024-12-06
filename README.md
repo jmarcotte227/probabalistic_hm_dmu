@@ -7,3 +7,4 @@ To run the Value Iteration code, run the file main.m.
 
 To run the Forward Search code, run the forward_search.m. 
 
+Additional Figures (Videos, gifs) as mentioned in our project reports are available in the Animations_Visuals_Figures folder
