@@ -1,7 +1,7 @@
 % Performs forward search based on the included transition model and action space
 
 actions = ["add", "sub"];
-vis_delay = 0.5;
+
 
 % grid state is the state of the grid
 grid_state = zeros(3);
@@ -11,8 +11,21 @@ grid_state = zeros(3);
 prev_action = "start";
 prev_action_idx = 0;
 
-% target grid state
-desired_grid= [0, 2, 0; 2, 2, 2; 0, 2, 0];
+% target grid state (3,3)
+desired_grid= [0, 2, 2; 
+               2, 2, 2; 
+               2, 2, 0];
+
+% target grid state (4,4)
+% desired_grid= [0, 2, 2, 0; 
+%                2, 2, 2, 2; 
+%                2, 2, 2, 2; 
+%                0, 2, 2, 0];
+% target grid state (5,5)
+% desired_grid= [0, 0, 2, 0, 0; 
+%                0, 2, 2, 2, 0; 
+%                2, 2, 2, 2, 2; 
+%                0, 2, 2, 2, 0];
 
 % desired_state = [0, 0, 0, 0, 0, 0, 0;
 %                  0, 0, 2, 2, 2, 0, 0;
@@ -33,7 +46,7 @@ exp_outcome = dictionary(actions, [2,0]);
 % check starting from here
 prev_action = "add";
 prev_action_idx = 1;
-grid_state = [0,0,0;0,0,0; 0,0,0];
+grid_state = [0,0,0;0,0,0;0,0,0];
 
 % check reward function
 % reward_func(grid_state, desired_grid, exp_outcome, prev_action, prev_action_idx, 'sub', 2)
@@ -43,24 +56,69 @@ grid_state = [0,0,0;0,0,0; 0,0,0];
 % % check forward step 
 % [action, position, value] = forward_search_step(grid_state, desired_grid, 0.9, 2, exp_outcome, prev_action, prev_action_idx, P_under, P_crit, P_over);
 
-% Value iteration
 % reset to 0
+rng("default");
 prev_aciton = "add";
 prev_action_idx = 1;
-grid_state = zeros(3);
+depth=1;
+grid_state = zeros(size(desired_grid));
 dimension = size(grid_state);
-figure;
+
+step_count = 0;
+mat_save = grid_state;
+step_times = [];
+t_start = cputime();
 while ~isequal(grid_state, desired_grid)
-    [action, position, value] = forward_search_step(grid_state, desired_grid, 0.9, 2, exp_outcome, prev_action, prev_action_idx, P_under, P_crit, P_over)
-    [i,j] = ind2sub(dimension, position)
+    t_start = cputime();
+    [action, position, value] = forward_search_step(grid_state, desired_grid, 0.9, depth, exp_outcome, prev_action, prev_action_idx, P_under, P_crit, P_over);
+    [i,j] = ind2sub(dimension, position);
+    t_end = cputime();
+    step_times = [step_times,t_end-t_start];
     if action == "add"
         grid_state = add_action(grid_state, [i,j]);
     elseif action == "sub"
         grid_state = sub_action(grid_state, [i,j]);
     end
-    visualize_state(grid_state)
+    % save grid state
+    mat_save = [mat_save, grid_state];
+    step_count=1+step_count;
+    disp(step_count)
+end
+t_end = cputime();
+fprintf("Done\n")
+
+%% Calculate step time
+
+fprintf("Average Step Time: ");
+disp(mean(step_times))
+fprintf("\n")
+
+fprintf("Std. Dev: ");
+disp(std(step_times))
+fprintf("\n")
+
+
+
+%% Visualize State Evolution
+% load("fs_data/3x3d4_state_ev.mat");
+load("fs_data/4x4d1_state_ev.mat");
+vis_delay = 0.5;
+figure;
+visualize_state(mat_save(1:4,1:4))
+input('wait for start')
+pause(vis_delay)
+pause(vis_delay)
+pause(vis_delay)
+step_count=22;
+for i = 1:step_count
+    visualize_state(mat_save(:,i*4+1:(i+1)*4))
     pause(vis_delay)
 end
+pause(vis_delay)
+pause(vis_delay)
+pause(vis_delay)
+
+%% Functions
 
 function reward=reward_func(state, target_state, exp_outcome, prev_action, prev_action_idx, action, action_position)
     % calculate neighboring cells
@@ -95,15 +153,15 @@ function reward=reward_func(state, target_state, exp_outcome, prev_action, prev_
     if isequal(target_state, state)
         reward=50;
     % reward for performing actions on neighboring states that drive it towards the solution
-    elseif (action == prev_action & ismember([row,col], neighbor_cells,'row') & exp_val == des_val)
+    elseif (action == prev_action && ismember([row,col], neighbor_cells,'row') && exp_val == des_val)
         reward=10;
     % reward for performing action that drives towards the final state
     elseif exp_val == des_val
         reward=5;
     % reward for removing partially filled cells
-    elseif (cur_val == 1 & action =="sub")
+    elseif (cur_val == 1 && action =="sub")
         reward=5;
-    elseif (cur_val ==0 & action =="sub")
+    elseif (cur_val ==0 && action =="sub")
         reward = -100;
     else
         reward=0;
