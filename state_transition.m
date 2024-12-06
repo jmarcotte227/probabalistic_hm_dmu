@@ -2,7 +2,7 @@ function T = state_transition(state, action)
 [rows,cols] = size(state);
 if action == "add" %add action
     names = ["under", "crit", "over"];
-    probabilities = [0.1, 0.6, 0.3];
+    probabilities = [0.1, 0.7, 0.2];
     
     %have to account for an add action occuring at any cell
     %row, col, number of possible results
@@ -17,8 +17,9 @@ if action == "add" %add action
                     T{i,j,k} = {sp, probabilities(k)};
                 end
             else %if cell not empty, state doesn't change
+                probabilities = [1 0 0];
                 for k = 1:3
-                    T{i,j,k} = {state,1};
+                    T{i,j,k} = {state,probabilities(k)};
                 end
             end
         end
@@ -36,8 +37,9 @@ else %subtract action
                     T{i,j,k} = {sp, probabilities(k)};
                 end
             else %if cell is empty, state doesn't change
-                for k=1:3
-                    T{i,j,k} = {state, 1};
+                probabilities = [1 0 0];
+                for k = 1:3
+                    T{i,j,k} = {state,probabilities(k)};
                 end
             end
         end

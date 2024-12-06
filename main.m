@@ -1,7 +1,7 @@
 close all;
 clear all;
 
-
+start_code = tic;
 vis_delay = 0.5;
 % desired_state = [0, 0, 0, 0, 0, 0, 0;
 %                  0, 0, 2, 2, 2, 0, 0;
@@ -13,14 +13,14 @@ vis_delay = 0.5;
 % 
 % state = zeros(7);
 
-% desired_state = [0 2 0;
-%                  2 0 2;
-%                  0 2 0];
-% 
-% state = zeros(3);
+desired_state = [0 2 0;
+                 2 0 2;
+                 0 2 0];
 
-desired_state = [2,0;2,0];
-state = zeros(2);
+state = zeros(3);
+
+% desired_state = [2,0;2,0];
+% state = zeros(2);
 
 [rows, cols] = size(state);
 % initialize figure
@@ -30,15 +30,18 @@ pause(vis_delay)
 
 %define parameters
 gamma = 0.9; 
-theta = 1e-12;
-% depth = 3;
+theta = 1;
 
 [optimal_policy, optimal_value] = value_iteration(rows,cols, gamma, theta, desired_state); %added theta
+toc(start_code)
+
 
 %% implement value iteration
-writerObj = VideoWriter('test7.avi'); %// initialize the VideoWriter object
+writerObj = VideoWriter("test"+num2str(rows)+".avi"); %// initialize the VideoWriter object
 open(writerObj);
 c = 1;
+F(c:c+20) = getframe;
+c = c+20;
 while ~isequal(state, desired_state)
   idx = find_state_id(state);
   action = optimal_policy{idx,1}; 
@@ -61,8 +64,6 @@ end
 writeVideo(writerObj,F)
 
 close(writerObj);
-
-
 
 
 

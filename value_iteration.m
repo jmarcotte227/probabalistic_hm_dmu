@@ -7,55 +7,92 @@ V = zeros(1,fill_q^(rows*cols)); % Initialize value function
 %to execute action in ([i,j]).
 policy = repmat({"add",zeros(1,2)},fill_q^(rows*cols),1); % Initialize policy
 actions = ["add","subtract"];
-%Q(s,a) -> size is (size of S = 3^(row x col)) x (size of A = 2 x row x col)
-%Q(state,i,j,add/sub)
-Q = zeros(fill_q^(rows*cols), rows,cols,2); %Initialize state-action value function
-A = zeros(fill_q^(rows*cols), rows,cols,2); %Initialize advantage function
-diff_QA=1;
-if diff_QA > theta
+
+%% create Q map
+%Q(state,add/sub,i,j)
+Qkeys = {};
+Qvals = {};
+Avals = {};
+i0 = 1;
+for id1 = 1:fill_q^(rows*cols)
+    for id2 = 1:2
+        for id3 = 1:rows
+            for id4 = 1:cols
+                Qkeys{i0} = [sprintf('%05d', id1), num2str(id2), num2str(id3), num2str(id4)];
+                Qvals{i0} = 0;
+                Avals{i0} = 1;
+                i0 = i0+1;
+            end
+        end
+    end
+end
+Q = containers.Map(Qkeys,Qvals); %Initialize state-action value function
+A = containers.Map(Qkeys,Avals); %Initialize advantage function
+disp("Q initialized")
+
+%initialize convergence condition
+diff_QA=theta*10;
+iters = 0;
+%% start iteration
+while diff_QA > theta %or iters < 100 
+    A_prev = cell2mat(values(A));
+    start_iter = tic;
     for i=1:fill_q^(rows*cols) %at each state,
-        state = state_id_2_state(i,rows,cols);
-        for a1 = 1:2 %for each action,
-            for i1=1:rows %action can happen in any cell - action space is 2xixj
-                for j1=1:cols 
+        state = state_id_2_state(i,rows,cols); 
+        for i1=1:rows %action can happen in any cell - action space is 2xixj
+            for j1=1:cols 
+                for a1 = 1:2 %for each action,
                     a = actions(a1); 
-                    %get reward for that action, using new V
+                    %get value for that action, using new V
                     V_s = lookahead(state, i1, j1, a, gamma, V, desired_s);
-                    Q(i,i1,j1,a1) = V_s; %update Q
+                    % update Q map
+                    Qkey = [sprintf('%05d', i),num2str(a1),num2str(i1),num2str(j1)];
+                    Q(Qkey) = V_s; 
                 end
             end
          end
     
-        %update policy
-        %get max Q for the state
-        Q_sqz = squeeze(Q(i,:,:,:));
-        Q_max = max(Q_sqz,[],"all"); 
-        Qmax_idx = Q_sqz == Q_max;
-        %recall Q format: Q(state,i,jadd/sub,)
-        [idx2,idx3,idx4] = ind2sub(size(Q_sqz),find(Qmax_idx));
-        if length(idx2) > 1 | length(idx3)>1 | length(idx4)>1
-            idx2 = idx2(1); %randsample(idx2,1);
-            idx3 = idx3(1); %randsample(idx3,1);
-            idx4 = idx4(1); %randsample(idx4,1);
-        end
+        %% update policy
+        % get max Q for the state
+        % sort map by value (ascending order)
+        [~, keys_map, values_map] = sort_map(Q); 
+        %isolate keys starting with i as a 5-element char (i corresponds to state)
+        first_el_match = startsWith(keys_map,num2str(sprintf('%05d', i)));
+        first_el_match_locations = find(first_el_match);
+        %get the largest value & its key (already sorted, so just grab the last one)
+        max_idx = first_el_match_locations(end); 
+        max_q = values_map(max_idx);
+        max_key = keys_map{max_idx};
+        
+        %get the idx's from the key 
+        maxi4 = str2double(max_key(end));
+        maxi3 = str2double(max_key(end-1));
+        maxi2 = str2double(max_key(end-2));
+        maxi1 = max_key(1:end-3); %keep as char
 
-        policy{i,1} = char(actions(idx4)); %"add" or "subtract"
-        policy{i,2} = [idx2,idx3]; %i,j
+        %update policy
+        policy{i,1} = char(actions(maxi2)); %"add" or "subtract"
+        policy{i,2} = [maxi3,maxi4]; %i,j
+        
         %update V
-        % Q_sqz(idx2,idx3,idx4)
-        V(i) = Q(i,idx2,idx3,idx4);
+        V(i) = max_q;
        
         %update advantage function
         for a1 = 1:2 %for each action,
             for i1=1:rows %action can happen in any cell - action space is 2xixj
                 for j1=1:cols 
-                    A(i,i1,j1,a1) = Q(i,i1,j1,a1) - V(i); 
+                    A_key = [maxi1,num2str(a1),num2str(i1),num2str(j1)];
+                    A(A_key) = Q(A_key) - max_q; %I don't think this A is correct
                 end
             end
-         end
-        diff_QA = abs(max(A-Q));
+        end
     end
-else
-    return
+    %get the change in A over the iteration (to see if theta condition is met)
+    Aallval = cell2mat(values(A));
+    subqa = Aallval-A_prev;
+    
+    diff_QA = max(abs(subqa))
+    iters = iters + 1
+    toc(start_iter)
 end
 
