@@ -7,21 +7,11 @@ for i = 1:rows
     for j = 1:cols
         %get reward for correct placements
         if isequal(state,desired_state)
-            R(:,:) = Inf;
+            R(:,:) = 1000;
             return
+        else
+            R = 0;
         end
-        if state(i,j) == desired_state(i,j)
-            if state(i,j) == 2
-                R(i,j) = 10;
-            elseif state(i,j) == 0
-                R(i,j) = 5;
-            end
-        % else
-        %     if state(i,j) > 0
-        %         R(i,j) = 2;
-        %     end
-        end
-
     end
 end
 
